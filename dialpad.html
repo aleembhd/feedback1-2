@@ -809,63 +809,36 @@
             let duration;
             
             if (status === 'Not Interested') {
-                const randomNum = Math.random() * 100;
+                // Calculate actual duration first
+                duration = calculateDuration();
+                const durationParts = duration.split(/min |sec/);
+                let totalSeconds = 0;
                 
-                // Primary durations (70% chance)
-                const primaryDurations = ['7sec', '8sec', '9sec', '6sec'];
-                // Secondary durations (30% chance)
-                const secondaryDurations = ['10sec', '11sec', '12sec'];
-                
-                // Get the last used duration from history
-                const lastDuration = notInterestedHistory.length > 0 ? 
-                    notInterestedHistory[notInterestedHistory.length - 1] : null;
-                
-                if (randomNum < 70) { // 70% chance for primary durations
-                    // Filter out the last used duration
-                    let availablePrimary = primaryDurations.filter(d => d !== lastDuration);
-                    
-                    // If we have previous calls, 30-40% chance to reuse older durations
-                    if (notInterestedHistory.length >= 2) {
-                        const reuseChance = Math.random() * 100;
-                        if (reuseChance > 35) { // 65% chance to pick a new duration
-                            // Filter out the last used duration
-                            availablePrimary = primaryDurations.filter(d => d !== lastDuration);
-                        } else { // 35% chance to reuse an old duration, but not the immediate last one
-                            const oldDurations = notInterestedHistory.slice(0, -1); // All except last
-                            const availableOld = oldDurations.filter(d => primaryDurations.includes(d));
-                            if (availableOld.length > 0) {
-                                const randomIndex = Math.floor(Math.random() * availableOld.length);
-                                duration = availableOld[randomIndex];
-                            }
-                        }
-                    }
-                    
-                    // If no duration was set and we have available primary durations
-                    if (!duration && availablePrimary.length > 0) {
-                        const randomIndex = Math.floor(Math.random() * availablePrimary.length);
-                        duration = availablePrimary[randomIndex];
-                    }
-                    
-                    // Fallback if somehow we still don't have a duration
-                    if (!duration) {
-                        availablePrimary = primaryDurations.filter(d => d !== lastDuration);
-                        const randomIndex = Math.floor(Math.random() * availablePrimary.length);
-                        duration = availablePrimary[randomIndex];
-                    }
-                    
-                } else { // 30% chance for secondary durations
-                    let availableSecondary = secondaryDurations.filter(d => d !== lastDuration);
-                    const randomIndex = Math.floor(Math.random() * availableSecondary.length);
-                    duration = availableSecondary[randomIndex];
+                // Convert duration to seconds
+                if (durationParts.length === 2) {
+                    totalSeconds = parseInt(durationParts[0]);
+                } else if (durationParts.length === 3) {
+                    totalSeconds = parseInt(durationParts[0]) * 60 + parseInt(durationParts[1]);
                 }
+
+                // Define duration sets
+                const shorterDurations = [6, 7, 8, 9];
+                const longerDurations = [10, 11, 12, 13];
                 
-                // Update the history
-                notInterestedHistory.push(duration);
-                // Store the complete history
-                localStorage.setItem('notInterestedHistory', JSON.stringify(notInterestedHistory));
-                
-                console.log('Call History:', notInterestedHistory); // For debugging
-                
+                // Choose duration based on threshold
+                let selectedDuration;
+                if (totalSeconds < 33) {
+                    // For calls under 33 seconds, randomly select from shorter durations
+                    const randomIndex = Math.floor(Math.random() * shorterDurations.length);
+                    selectedDuration = shorterDurations[randomIndex];
+                } else {
+                    // For calls 33 seconds or longer, randomly select from longer durations
+                    const randomIndex = Math.floor(Math.random() * longerDurations.length);
+                    selectedDuration = longerDurations[randomIndex];
+                }
+
+                // Convert to final format
+                duration = `${selectedDuration}sec`;
             } else if (status === 'Callback') {
                 // Calculate duration first
                 duration = calculateDuration();
