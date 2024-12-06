@@ -607,6 +607,14 @@
         // Add this after Firebase initialization
         const namesRef = firebase.database().ref('telecallerNames');
 
+        // Pre-fetch the names when the page loads
+        let cachedNames = null;
+        namesRef.once('value')
+            .then(snapshot => {
+                cachedNames = snapshot.val() || {};
+            })
+            .catch(error => console.error('Error pre-fetching names:', error));
+
         document.addEventListener('DOMContentLoaded', function() {
             const quotes = [
                 "Build your dreams, one property at a time.",
@@ -640,11 +648,12 @@
             let currentRole = '';
 
             telecallerBtn.addEventListener('click', function() {
-                // Show modal immediately with default names
+                const excludedButtons = [3,4,5,6,7,8,9,10]; // Add any numbers you want to exclude here, e.g., [7, 3, 5]
                 const telecallerModal = document.createElement('div');
                 telecallerModal.className = 'modal';
                 telecallerModal.style.display = 'block';
                 
+                // Initially show default names
                 telecallerModal.innerHTML = `
                     ${editStyles}
                     <div class="modal-content">
@@ -652,110 +661,66 @@
                             ← Back
                         </button>
                         <h2>Select Telecaller</h2>
-                        <div style="display: flex; flex-direction: column; gap: 20px;">
-                            <div class="manager-button-container">
-                                <button id="telecaller1Btn" class="manager-btn">
-                                    <span class="button-number">1.</span>
-                                    <span>Telecaller 1</span>
-                                </button>
-                            </div>
-                            <div class="manager-button-container">
-                                <button id="telecaller2Btn" class="manager-btn">
-                                    <span class="button-number">2.</span>
-                                    <span>Telecaller 2</span>
-                                </button>
-                            </div>
-                            <!--
-                            <div class="manager-button-container">
-                                <button id="telecaller3Btn" class="manager-btn">
-                                    <span class="button-number">3.</span>
-                                    <span>Telecaller 3</span>
-                                </button>
-                            </div>
-                            <div class="manager-button-container">
-                                <button id="telecaller4Btn" class="manager-btn">
-                                    <span class="button-number">4.</span>
-                                    <span>Telecaller 4</span>
-                                </button>
-                            </div>
-                            <div class="manager-button-container">
-                                <button id="telecaller5Btn" class="manager-btn">
-                                    <span class="button-number">5.</span>
-                                    <span>Telecaller 5</span>
-                                </button>
-                            </div>
-                            <div class="manager-button-container">
-                                <button id="telecaller6Btn" class="manager-btn">
-                                    <span class="button-number">6.</span>
-                                    <span>Telecaller 6</span>
-                                </button>
-                            </div>
-                            <div class="manager-button-container">
-                                <button id="telecaller7Btn" class="manager-btn">
-                                    <span class="button-number">7.</span>
-                                    <span>Telecaller 7</span>
-                                </button>
-                            </div>
-                            <div class="manager-button-container">
-                                <button id="telecaller8Btn" class="manager-btn">
-                                    <span class="button-number">8.</span>
-                                    <span>Telecaller 8</span>
-                                </button>
-                            </div>
-                            <div class="manager-button-container">
-                                <button id="telecaller9Btn" class="manager-btn">
-                                    <span class="button-number">9.</span>
-                                    <span>Telecaller 9</span>
-                                </button>
-                            </div>
-                            
-                            <div class="manager-button-container">
-                                <button id="telecaller10Btn" class="manager-btn">
-                                    <span class="button-number">10.</span>
-                                    <span>Telecaller 10</span>
-                                </button>
-                            </div>
-                            -->
+                        <div style="display: flex; flex-direction: column; gap: 20px;" id="telecallerButtonsContainer">
+                            ${Array.from({ length: 10 }, (_, i) => {
+                                const number = i + 1;
+                                // Skip any excluded button numbers
+                                if (excludedButtons.includes(number)) return '';
+                                return `
+                                    <div class="manager-button-container">
+                                        <button id="telecaller${number}Btn" class="manager-btn">
+                                            <span class="button-number">${number}.</span>
+                                            <span id="telecallerName${number}">Telecaller ${number}</span>
+                                        </button>
+                                    </div>
+                                `;
+                            }).filter(button => button !== '').join('')}
                         </div>
                     </div>
                 `;
                 
                 document.body.appendChild(telecallerModal);
 
-                // Add back button handler
-                telecallerModal.querySelector('.back-button').addEventListener('click', () => {
-                    document.body.removeChild(telecallerModal);
-                });
-
-                // Add click handlers for all telecaller buttons
+                // Add click handlers only for non-excluded buttons
                 for(let i = 1; i <= 10; i++) {
-                    document.getElementById(`telecaller${i}Btn`).addEventListener('click', () => {
-                        localStorage.setItem('telecallerEmail', `telecaller${i}@gmail.com`);
-                        const dialpadWindow = window.open('dialpad.html', '_blank');
-                        
-                        firebase.auth().signInWithEmailAndPassword(`telecaller${i}@gmail.com`, 'telecaller@123')
-                            .then(() => {
+                    if (!excludedButtons.includes(i)) {
+                        const button = document.getElementById(`telecaller${i}Btn`);
+                        if (button) {
+                            button.addEventListener('click', () => {
+                                const telecallerEmail = `telecaller${i}@gmail.com`;
+                                localStorage.setItem('telecallerEmail', telecallerEmail);
+                                window.open('dialpad.html', '_blank');
+                                
+                                // Authenticate in background
+                                firebase.auth().signInWithEmailAndPassword(telecallerEmail, 'telecaller@123')
+                                    .catch(error => console.error('Auth error:', error));
+                                
                                 telecallerModal.remove();
-                            })
-                            .catch(error => {
-                                dialpadWindow.close();
-                                alert("Authentication failed. Please try again.");
                             });
-                    });
+                        }
+                    }
                 }
 
-                // Then update names from Firebase in the background
-                namesRef.once('value')
-                    .then(snapshot => {
-                        const names = snapshot.val() || {};
-                        for(let i = 1; i <= 10; i++) {
-                            const nameKey = `telecaller${getNumberWord(i)}`;
-                            const nameSpan = document.querySelector(`#telecaller${i}Btn span:last-child`);
-                            if (nameSpan && names[nameKey]) {
-                                nameSpan.textContent = names[nameKey];
+                telecallerModal.querySelector('.back-button').addEventListener('click', () => 
+                    telecallerModal.remove()
+                );
+
+                // Real-time listener for name updates (excluding excluded buttons)
+                firebase.database().ref('telecallerNames').on('value', (snapshot) => {
+                    const names = snapshot.val() || {};
+                    // Update each name span with the Firebase data
+                    for(let i = 1; i <= 10; i++) {
+                        if (!excludedButtons.includes(i)) {
+                            const nameSpan = document.getElementById(`telecallerName${i}`);
+                            if (nameSpan) {
+                                const nameKey = `telecaller${getNumberWord(i)}`; // e.g., telecallerOne, telecallerTwo
+                                if (names[nameKey]) {
+                                    nameSpan.textContent = names[nameKey];
+                                }
                             }
                         }
-                    });
+                    }
+                });
             });
 
             marketingManagerBtn.addEventListener('click', function() {
@@ -772,6 +737,15 @@
                     document.getElementById('passwordInput').value = rememberedPassword;
                     document.getElementById('rememberCheckbox').checked = true;
                 }
+                
+                // Focus on email input if empty, otherwise focus on password
+                const emailInput = document.getElementById('emailInput');
+                const passwordInput = document.getElementById('passwordInput');
+                if (!emailInput.value) {
+                    emailInput.focus();
+                } else {
+                    passwordInput.focus();
+                }
             });
 
             submitPassword.addEventListener('click', async function() {
@@ -782,195 +756,126 @@
                     // Hide login modal
                     modal.style.display = 'none';
                     
-                    // Show manager selection modal instantly
-                    const managerModal = document.createElement('div');
-                    managerModal.className = 'modal';
-                    managerModal.style.display = 'block';
-                    
-                    managerModal.innerHTML = `
-                        ${editStyles}
-                        <div class="modal-content">
-                            <button class="back-button" style="position: absolute; top: 15px; left: 15px; background: black; border: none; cursor: pointer; color: white; font-size: 16px; font-weight: 500; padding: 5px 10px; border-radius: 5px;">
-                                ← Backkkkk
-                            </button>
-                            <h2>Select Telecaller</h2>
-                            <div style="display: flex; flex-direction: column; gap: 20px;">
-                                <div class="manager-button-container">
-                                    <button id="admin1Btn" class="manager-btn">
-                                        <span class="button-number">1.</span>
-                                        <span id="admin1Name">Telecaller 1</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin1">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                <div class="manager-button-container">
-                                    <button id="admin2Btn" class="manager-btn">
-                                        <span class="button-number">2.</span>
-                                        <span id="admin2Name">Telecaller 2</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin2">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                <!--
-                                <div class="manager-button-container">
-                                    <button id="admin3Btn" class="manager-btn">
-                                        <span class="button-number">3.</span>
-                                        <span id="admin3Name">Telecaller 3</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin3">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                <div class="manager-button-container">
-                                    <button id="admin4Btn" class="manager-btn">
-                                        <span class="button-number">4.</span>
-                                        <span id="admin4Name">Telecaller 4</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin4">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                <div class="manager-button-container">
-                                    <button id="admin5Btn" class="manager-btn">
-                                        <span class="button-number">5.</span>
-                                        <span id="admin5Name">Telecaller 5</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin5">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                <div class="manager-button-container">
-                                    <button id="admin6Btn" class="manager-btn">
-                                        <span class="button-number">6.</span>
-                                        <span id="admin6Name">Telecaller 6</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin6">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                <div class="manager-button-container">
-                                    <button id="admin7Btn" class="manager-btn">
-                                        <span class="button-number">7.</span>
-                                        <span id="admin7Name">Telecaller 7</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin7">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                <div class="manager-button-container">
-                                    <button id="admin8Btn" class="manager-btn">
-                                        <span class="button-number">8.</span>
-                                        <span id="admin8Name">Telecaller 8</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin8">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                <div class="manager-button-container">
-                                    <button id="admin9Btn" class="manager-btn">
-                                        <span class="button-number">9.</span>
-                                        <span id="admin9Name">Telecaller 9</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin9">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                
-                                <div class="manager-button-container">
-                                    <button id="admin10Btn" class="manager-btn">
-                                        <span class="button-number">10.</span>
-                                        <span id="admin10Name">Telecaller 10</span>
-                                    </button>
-                                    <span class="edit-icon" id="editAdmin10">
-                                        <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
-                                    </span>
-                                </div>
-                                -->
-                            </div>
-                            <div style="text-align: center;">
-                                <button class="save-button">Save</button>
-                            </div>
-                        </div>
-                    `;
-                    
-                    document.body.appendChild(managerModal);
-
-                    // Add back button handler
-                    managerModal.querySelector('.back-button').addEventListener('click', () => {
-                        managerModal.remove();
-                    });
-
-                    // Add save button functionality
-                    managerModal.querySelector('.save-button').addEventListener('click', async () => {
-                        try {
-                            const names = {};
-                            for(let i = 1; i <= 10; i++) {
-                                const nameElement = document.getElementById(`admin${i}Name`);
-                                if (nameElement) {
-                                    names[`telecaller${getNumberWord(i)}`] = nameElement.textContent;
-                                }
-                            }
-                            await namesRef.update(names);
-                            alert('Names saved successfully!');
-                        } catch (error) {
-                            console.error('Error saving names:', error);
-                            alert('Failed to save names. Please try again.');
-                        }
-                    });
-
-                    // Add click handlers for all admin buttons
-                    for(let i = 1; i <= 10; i++) {
-                        const adminBtn = document.getElementById(`admin${i}Btn`);
-                        const editIcon = document.getElementById(`editAdmin${i}`);
+                    // Pre-fetch names before showing manager modal
+                    try {
+                        const snapshot = await namesRef.once('value');
+                        const names = snapshot.val() || {};
+                        // Create and show manager modal with pre-fetched data
+                        const managerModal = document.createElement('div');
+                        managerModal.className = 'modal';
+                        managerModal.style.display = 'block';
                         
+                        const excludedButtons = [3,4,5,6,7,8,9,10]; // Specify buttons to exclude if needed
+                        
+                        managerModal.innerHTML = `
+                            ${editStyles}
+                            <div class="modal-content">
+                                <button class="back-button" style="position: absolute; top: 15px; left: 15px; background: black; border: none; cursor: pointer; color: white; font-size: 16px; font-weight: 500; padding: 5px 10px; border-radius: 5px;">
+                                    ← Back
+                                </button>
+                                <h2>Select Telecaller</h2>
+                                <div style="display: flex; flex-direction: column; gap: 20px;">
+                                    ${Array.from({ length: 10 }, (_, i) => {
+                                        const number = i + 1;
+                                        if (excludedButtons.includes(number)) return '';
+                                        
+                                        const nameKey = `telecaller${getNumberWord(number)}`;
+                                        const storedName = names[nameKey] || `Telecaller ${number}`;
+                                        
+                                        return `
+                                            <div class="manager-button-container">
+                                                <button id="admin${number}Btn" class="manager-btn">
+                                                    <span class="button-number">${number}.</span>
+                                                    <span id="admin${number}Name">${storedName}</span>
+                                                </button>
+                                                <span class="edit-icon" id="editAdmin${number}">
+                                                    <img src="images/editicon.png" alt="Edit" style="width: 33px; height: 33px;">
+                                                </span>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                                <div style="text-align: center; margin-top: 20px;">
+                                    <button class="save-button">Save</button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        document.body.appendChild(managerModal);
+
+                        // Add back button handler
+                        managerModal.querySelector('.back-button').addEventListener('click', () => {
+                            managerModal.remove();
+                        });
+
                         // Make names editable
-                        makeEditable(`admin${i}Name`, `editAdmin${i}`);
-                        
-                        // Add click handler for admin button
-                        adminBtn.addEventListener('click', () => {
-                            const adminNumber = i.toString();
-                            const adminEmail = `admin${adminNumber}@gmail.com`;
-                            const telecallerEmail = `telecaller${adminNumber}@gmail.com`;
-                            
-                            localStorage.setItem('selectedTelecaller', telecallerEmail);
-                            localStorage.setItem('adminEmail', adminEmail);
-                            localStorage.setItem('isManager', 'true');
-                            localStorage.setItem('selectedManagerName', document.getElementById(`admin${adminNumber}Name`).textContent);
-                            
-                            // Open dashboard immediately
-                            const dashboardWindow = window.open('maindashboard.html', '_blank');
-                            
-                            // Authenticate in background
-                            firebase.auth().signInWithEmailAndPassword(adminEmail, 'admin@123')
-                                .then(() => {
-                                    managerModal.remove();
-                                })
-                                .catch(error => {
-                                    console.error('Auth error:', error);
-                                    if (error.code === 'auth/user-not-found' || 
-                                        error.code === 'auth/wrong-password' ||
-                                        error.code === 'auth/invalid-email') {
-                                        dashboardWindow.close();
-                                        alert("Authentication failed. Please try again.");
-                                    }
-                                });
-                        });
-                    }
+                        for(let i = 1; i <= 10; i++) {
+                            if (!excludedButtons.includes(i)) {
+                                makeEditable(`admin${i}Name`, `editAdmin${i}`);
+                            }
+                        }
 
-                    // Update names from Firebase in background
-                    namesRef.once('value')
-                        .then(snapshot => {
-                            const names = snapshot.val() || {};
-                            for(let i = 1; i <= 10; i++) {
-                                const nameKey = `telecaller${getNumberWord(i)}`;
-                                const nameSpan = document.getElementById(`admin${i}Name`);
-                                if (nameSpan && names[nameKey]) {
-                                    nameSpan.textContent = names[nameKey];
+                        // Add save button functionality
+                        managerModal.querySelector('.save-button').addEventListener('click', async () => {
+                            try {
+                                const updatedNames = {};
+                                for(let i = 1; i <= 10; i++) {
+                                    if (!excludedButtons.includes(i)) {
+                                        const nameElement = document.getElementById(`admin${i}Name`);
+                                        if (nameElement) {
+                                            updatedNames[`telecaller${getNumberWord(i)}`] = nameElement.textContent;
+                                        }
+                                    }
                                 }
+                                await namesRef.update(updatedNames);
+                                alert('Names saved successfully!');
+                            } catch (error) {
+                                console.error('Error saving names:', error);
+                                alert('Failed to save names. Please try again.');
                             }
                         });
+
+                        // Add click handlers for admin buttons
+                        for(let i = 1; i <= 10; i++) {
+                            if (!excludedButtons.includes(i)) {
+                                const button = document.getElementById(`admin${i}Btn`);
+                                if (button) {
+                                    button.addEventListener('click', async () => {
+                                        const adminNumber = i.toString();
+                                        const adminEmail = `admin${adminNumber}@gmail.com`;
+                                        const telecallerEmail = `telecaller${adminNumber}@gmail.com`;
+                                        
+                                        // Set localStorage values first
+                                        localStorage.setItem('selectedTelecaller', telecallerEmail);
+                                        localStorage.setItem('adminEmail', adminEmail);
+                                        localStorage.setItem('isManager', 'true');
+                                        localStorage.setItem('selectedManagerName', document.getElementById(`admin${adminNumber}Name`).textContent);
+                                        
+                                        // Open dashboard immediately
+                                        const dashboardWindow = window.open('maindashboard.html', '_blank');
+                                        
+                                        // Authenticate in background
+                                        try {
+                                            await firebase.auth().signInWithEmailAndPassword(adminEmail, 'admin@123');
+                                            managerModal.remove();
+                                        } catch (authError) {
+                                            console.error('Auth error:', authError);
+                                            if (authError.code === 'auth/user-not-found' || 
+                                                authError.code === 'auth/wrong-password' ||
+                                                authError.code === 'auth/invalid-email') {
+                                                dashboardWindow.close();
+                                                alert("Authentication failed. Please try again.");
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+                        }
+
+                    } catch (error) {
+                        console.error('Error fetching names:', error);
+                        alert('Failed to load telecaller names. Please try again.');
+                    }
 
                     // Handle remember me checkbox
                     if (rememberCheckbox.checked) {
@@ -1357,138 +1262,82 @@
             }
 
             function showTelecallerSelectionModal() {
-                namesRef.once('value')
-                    .then(snapshot => {
-                        const names = snapshot.val() || {};
-                        
-                        const telecallerModal = document.createElement('div');
-                        telecallerModal.className = 'modal';
-                        telecallerModal.style.display = 'block';
-                        
-                        telecallerModal.innerHTML = `
-                            ${editStyles}
-                            <div class="modal-content">
-                                <button class="back-button" style="position: absolute; top: 15px; left: 15px; background: black; border: none; cursor: pointer; color: white; font-size: 16px; font-weight: 500; padding: 5px 10px; border-radius: 5px;">
-                                    ← Backk
-                                </button>
-                                <h2>Select Telecaller</h2>
-                                <div style="display: flex; flex-direction: column; gap: 20px;">
-                                    <div class="manager-button-container">
-                                        <button id="telecaller1Btn" class="manager-btn">
-                                            <span class="button-number">1.</span>
-                                            <span>${names.telecallerOne || 'Telecaller 1'}</span>
-                                        </button>
-                                    </div>
-                                    <div class="manager-button-container">
-                                        <button id="telecaller2Btn" class="manager-btn">
-                                            <span class="button-number">2.</span>
-                                            <span>${names.telecallerTwo || 'Telecaller 2'}</span>
-                                        </button>
-                                    </div>
-                                    <div class="manager-button-container">
-                                        <button id="telecaller3Btn" class="manager-btn">
-                                            <span class="button-number">3.</span>
-                                            <span>${names.telecallerThree || 'Telecaller 3'}</span>
-                                        </button>
-                                    </div>
-                                    <div class="manager-button-container">
-                                        <button id="telecaller4Btn" class="manager-btn">
-                                            <span class="button-number">4.</span>
-                                            <span>${names.telecallerFour || 'Telecaller 4'}</span>
-                                        </button>
-                                    </div>
-                                    <div class="manager-button-container">
-                                        <button id="telecaller5Btn" class="manager-btn">
-                                            <span class="button-number">5.</span>
-                                            <span>${names.telecallerFive || 'Telecaller 5'}</span>
-                                        </button>
-                                    </div>
-                                    <div class="manager-button-container">
-                                        <button id="telecaller6Btn" class="manager-btn">
-                                            <span class="button-number">6.</span>
-                                            <span>${names.telecallerSix || 'Telecaller 6'}</span>
-                                        </button>
-                                    </div>
-                                    <div class="manager-button-container">
-                                        <button id="telecaller7Btn" class="manager-btn">
-                                            <span class="button-number">7.</span>
-                                            <span>${names.telecallerSeven || 'Telecaller 7'}</span>
-                                        </button>
-                                    </div>
-                                    <div class="manager-button-container">
-                                        <button id="telecaller8Btn" class="manager-btn">
-                                            <span class="button-number">8.</span>
-                                            <span>${names.telecallerEight || 'Telecaller 8'}</span>
-                                        </button>
-                                    </div>
-                                    
-                                    <div class="manager-button-container">
-                                        <button id="telecaller9Btn" class="manager-btn">
-                                            <span class="button-number">9.</span>
-                                            <span>${names.telecallerNine || 'Telecaller 9'}</span>
-                                        </button>
-                                    </div>
-                                    <div class="manager-button-container">
-                                        <button id="telecaller10Btn" class="manager-btn">
-                                            <span class="button-number">10.</span>
-                                            <span>${names.telecallerTen || 'Telecaller 10'}</span>
-                                        </button>
-                                    </div>
-                                    
-                                </div>
-                            </div>
-                        `;
-                        
-                        document.body.appendChild(telecallerModal);
+                const telecallerModal = document.createElement('div');
+                telecallerModal.className = 'modal';
+                telecallerModal.style.display = 'block';
+                
+                const excludedButtons = [3,4,5,6,7,8,9,10]; // Button to exclude
+                
+                // Use cached names or empty object if cache not ready
+                const names = cachedNames || {};
+                
+                // Filter out excluded buttons before creating HTML
+                const buttonsHtml = Array.from({ length: 10 }, (_, i) => {
+                    const number = i + 1;
+                    // Skip excluded button numbers completely
+                    if (excludedButtons.includes(number)) {
+                        return ''; // Return empty string for excluded button
+                    }
+                    
+                    const nameKey = `telecaller${getNumberWord(number)}`;
+                    const storedName = names[nameKey] || `Telecaller ${number}`;
+                    
+                    return `
+                        <div class="manager-button-container">
+                            <button id="telecaller${number}Btn" class="manager-btn">
+                                <span class="button-number">${number}.</span>
+                                <span>${storedName}</span>
+                            </button>
+                        </div>
+                    `;
+                }).filter(html => html !== '').join(''); // Filter out empty strings
+                
+                telecallerModal.innerHTML = `
+                    ${editStyles}
+                    <div class="modal-content">
+                        <button class="back-button" style="position: absolute; top: 15px; left: 15px; background: black; border: none; cursor: pointer; color: white; font-size: 16px; font-weight: 500; padding: 5px 10px; border-radius: 5px;">
+                            ← Back
+                        </button>
+                        <h2>Select Telecaller</h2>
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            ${buttonsHtml}
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(telecallerModal);
 
-                        // Add this immediately after appending the modal
-                        const backButton = telecallerModal.querySelector('.back-button');
-                        backButton.addEventListener('click', () => {
-                            document.body.removeChild(telecallerModal);
-                        });
+                // Add event listeners
+                telecallerModal.querySelector('.back-button').addEventListener('click', () => {
+                    telecallerModal.remove();
+                });
 
-                        // Existing button handlers remain unchanged
-                        document.getElementById('telecaller1Btn').addEventListener('click', () => {
-                            // Set telecaller identity first
-                            localStorage.setItem('telecallerEmail', 'telecaller1@gmail.com');
-                            
-                            // Open dialpad immediately
-                            const dialpadWindow = window.open('dialpad.html', '_blank');
-                            
-                            // Authenticate in background
-                            firebase.auth().signInWithEmailAndPassword('telecaller1@gmail.com', 'telecaller@123')
-                                .then(() => {
-                                    telecallerModal.remove();
-                                })
-                                .catch(error => {
-                                    // Close dialpad if auth fails
-                                    dialpadWindow.close();
-                                    alert("Authentication failed. Please try again.");
-                                });
-                        });
-
-                        // For telecaller2 through telecaller10, use this more efficient loop
-                        for(let i = 2; i <= 10; i++) {
-                            document.getElementById(`telecaller${i}Btn`).addEventListener('click', () => {
-                                // Set telecaller identity first
-                                localStorage.setItem('telecallerEmail', `telecaller${i}@gmail.com`);
+                // Optimize button click handlers
+                for(let i = 1; i <= 10; i++) {
+                    if (!excludedButtons.includes(i)) {
+                        const button = document.getElementById(`telecaller${i}Btn`);
+                        if (button) {
+                            button.addEventListener('click', () => {
+                                const telecallerEmail = `telecaller${i}@gmail.com`;
+                                localStorage.setItem('telecallerEmail', telecallerEmail);
                                 
-                                // Open dialpad immediately
+                                // Open dialpad first
                                 const dialpadWindow = window.open('dialpad.html', '_blank');
                                 
-                                // Authenticate in background
-                                firebase.auth().signInWithEmailAndPassword(`telecaller${i}@gmail.com`, 'telecaller@123')
+                                // Then authenticate in background
+                                firebase.auth().signInWithEmailAndPassword(telecallerEmail, 'telecaller@123')
                                     .then(() => {
                                         telecallerModal.remove();
                                     })
                                     .catch(error => {
-                                        // Close dialpad if auth fails
+                                        console.error('Auth error:', error);
                                         dialpadWindow.close();
                                         alert("Authentication failed. Please try again.");
                                     });
                             });
                         }
-                    });
+                    }
+                }
             }
         });
 
