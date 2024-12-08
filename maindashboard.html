@@ -769,9 +769,9 @@
     <script>
         // Function to update progress bar
         function updateProgressBar(totalCalls) {
-            const maxCalls = 5000;
-            const greenLimit = 1600;
-            const yellowLimit = 3300;
+            const maxCalls = 7000;
+            const greenLimit = 2240;
+            const yellowLimit = 4620;
             
             const progressBar = document.querySelector('.progress-bar');
             const progressText = document.querySelector('.progress-text');
@@ -805,7 +805,7 @@
             yellowSegment.style.width = `${yellowWidth}%`;
             redSegment.style.width = `${redWidth}%`;
 
-            // Update text
+            // Update text with new maximum
             progressText.textContent = `${totalCalls}/${maxCalls} calls`;
         }
 
