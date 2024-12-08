@@ -1591,6 +1591,113 @@
                 console.error('Sign out error:', error);
             });
         });
+
+        // Add this code right after your Firebase initialization
+        const GOOGLE_PROFILE_KEY = 'googleAuthProfile';
+
+        // Function to store Google profile
+        const storeGoogleProfile = (user) => {
+            if (user && user.providerData[0].providerId === 'google.com') {
+                const profileData = {
+                    photoURL: user.photoURL,
+                    displayName: user.displayName,
+                    email: user.email,
+                    isGoogleAuth: true
+                };
+                localStorage.setItem(GOOGLE_PROFILE_KEY, JSON.stringify(profileData));
+                console.log('Google profile stored:', profileData); // Debug log
+            }
+        };
+
+        // Function to restore Google profile display
+        const restoreGoogleProfile = () => {
+            const profileData = localStorage.getItem(GOOGLE_PROFILE_KEY);
+            if (profileData) {
+                const profile = JSON.parse(profileData);
+                if (profile.isGoogleAuth) {
+                    const userProfilePic = document.getElementById('userProfilePic');
+                    const dropdownProfilePic = document.getElementById('dropdownProfilePic');
+                    const userName = document.getElementById('userName');
+                    const userEmail = document.getElementById('userEmail');
+
+                    if (userProfilePic) userProfilePic.src = profile.photoURL;
+                    if (dropdownProfilePic) dropdownProfilePic.src = profile.photoURL;
+                    if (userName) userName.textContent = profile.displayName;
+                    if (userEmail) userEmail.textContent = profile.email;
+                    
+                    console.log('Google profile restored:', profile); // Debug log
+                }
+            }
+        };
+
+        // Find the existing onAuthStateChanged and add this inside
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                // Store Google profile when it's a Google sign-in
+                storeGoogleProfile(user);
+                // Always restore Google profile for display
+                restoreGoogleProfile();
+                
+                // ... rest of your existing code ...
+            }
+        });
+
+        // Add these event listeners after your existing DOMContentLoaded event
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                restoreGoogleProfile();
+                console.log('Profile restored on visibility change'); // Debug log
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            restoreGoogleProfile();
+            console.log('Profile restored on window focus'); // Debug log
+        });
+
+        // Modify your existing sign out button handler
+        document.getElementById('signOutBtn').addEventListener('click', () => {
+            firebase.auth().signOut().then(() => {
+                // Store admin credentials if they exist
+                const adminEmail = localStorage.getItem('rememberedManagerEmail');
+                const adminPassword = localStorage.getItem('rememberedManagerPassword');
+                
+                // Clear storages but keep Google profile data
+                const googleProfile = localStorage.getItem(GOOGLE_PROFILE_KEY);
+                
+                sessionStorage.clear();
+                localStorage.clear();
+                
+                // Restore necessary data
+                if (googleProfile) {
+                    localStorage.setItem(GOOGLE_PROFILE_KEY, googleProfile);
+                }
+                if (adminEmail && adminPassword) {
+                    localStorage.setItem('rememberedManagerEmail', adminEmail);
+                    localStorage.setItem('rememberedManagerPassword', adminPassword);
+                }
+                
+                window.location.replace('auth.html');
+            }).catch((error) => {
+                console.error('Sign out error:', error);
+            });
+        });
+
+        // Add this to handle telecaller button clicks
+        const handleTelecallerAuth = (telecallerEmail) => {
+            // Store the telecaller email but don't update the profile display
+            localStorage.setItem('telecallerEmail', telecallerEmail);
+            // Immediately restore Google profile
+            restoreGoogleProfile();
+        };
+
+        // Add this to handle marketing manager auth
+        const handleManagerAuth = (adminEmail) => {
+            // Store the admin email but don't update the profile display
+            localStorage.setItem('adminEmail', adminEmail);
+            // Immediately restore Google profile
+            restoreGoogleProfile();
+        };
     </script>
     
     <footer style="position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 0.8rem; color: var(--accent-color);">
